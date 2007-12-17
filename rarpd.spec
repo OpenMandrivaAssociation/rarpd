@@ -11,7 +11,6 @@ Patch1:		rarpd-norun.patch
 Patch2:		rarpd-ss981107-initscript.patch
 Patch3:		rarpd-ss981107-override-tftpboot-dir.patch
 Requires(post,preun):	rpm-helper
-BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 
 %description

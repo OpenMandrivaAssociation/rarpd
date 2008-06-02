@@ -33,7 +33,7 @@ network.
 %patch3 -p1 -b .tftpdir
 
 %build
-%make CFLAGS="%{optflags} -Wall -DTFTPDIR='\"%{_localstatedir}/tftpboot\"'"
+%make CFLAGS="%{optflags} -Wall -DTFTPDIR='\"%{_localstatedir}/lib/tftpboot\"'"
 
 %install
 rm -rf %{buildroot}

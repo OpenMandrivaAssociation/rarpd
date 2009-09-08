@@ -1,7 +1,7 @@
 Summary:	The RARP daemon
 Name:		rarpd
 Version:	ss981107
-Release:	%mkrel 7
+Release:	%mkrel 8
 License:	GPL
 Group:		System/Servers
 URL:		ftp://ftp.inr.ac.ru/ip-routing/dhcp.bootp.rarp/

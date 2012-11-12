@@ -1,0 +1,592 @@
+--- rarpd/Makefile.jj	Sat Nov  7 15:29:54 1998
++++ rarpd/Makefile	Fri Apr  7 10:40:29 2000
+@@ -1,7 +1,7 @@
+ CC=gcc
+ CFLAGS=-O2 -Wall -g $(DEFINES)
+ 
+-OBJ=rarpd.o ethernet.o
++OBJ=rarpd.o
+ 
+ all: rarpd
+ 
+--- rarpd/ethernet.c.jj	Fri Nov  6 16:17:42 1998
++++ rarpd/ethernet.c	Thu Jan  1 01:00:00 1970
+@@ -1,224 +0,0 @@
+-/*
+- * Copyright (c) 1990, 1993 The Regents of the University of California.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that: (1) source code distributions
+- * retain the above copyright notice and this paragraph in its entirety, (2)
+- * distributions including binary code include the above copyright notice and
+- * this paragraph in its entirety in the documentation or other materials
+- * provided with the distribution, and (3) all advertising materials mentioning
+- * features or use of this software display the following acknowledgement:
+- * ``This product includes software developed by the University of California,
+- * Lawrence Berkeley Laboratory and its contributors.'' Neither the name of
+- * the University nor the names of its contributors may be used to endorse
+- * or promote products derived from this software without specific prior
+- * written permission.
+- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+- */
+-#ifndef lint
+-static char rcsid[] =
+-    "@(#) $Header: etherent.c,v 1.4 96/06/14 20:34:25 leres Exp $ (LBL)";
+-#endif
+-
+-#include <sys/types.h>
+-#include <sys/stat.h>
+-#include <sys/time.h>
+-
+-#include <ctype.h>
+-#include <stdio.h>
+-#include <string.h>
+-
+-#ifndef ETHERS_FILE
+-#define ETHERS_FILE "/etc/ethers"
+-#endif
+-
+-struct etherent {
+-        u_char addr[6];
+-        char name[122];
+-};
+-
+-static FILE *ether_fp = NULL;
+-
+-
+-/* Hex digit to integer. */
+-static inline int
+-xdtoi(c)
+-	int c;
+-{
+-
+-	if (isdigit(c))
+-		return c - '0';
+-	else if (islower(c))
+-		return c - 'a' + 10;
+-	else
+-		return c - 'A' + 10;
+-}
+-
+-static inline int
+-skip_space(f)
+-	FILE *f;
+-{
+-	int c;
+-
+-	do {
+-		c = getc(f);
+-	} while (isspace(c) && c != '\n');
+-
+-	return c;
+-}
+-
+-static inline int
+-skip_line(f)
+-	FILE *f;
+-{
+-	int c;
+-
+-	do
+-		c = getc(f);
+-	while (c != '\n' && c != EOF);
+-
+-	return c;
+-}
+-
+-static struct etherent *
+-next_etherent(fp)
+-	FILE *fp;
+-{
+-	register int c, d, i;
+-	char *bp;
+-	static struct etherent e;
+-	static int nline = 1;
+- top:
+-	while (nline) {
+-		/* Find addr */
+-		c = skip_space(fp);
+-		if (c == '\n')
+-			continue;
+-		/* If this is a comment, or first thing on line
+-		   cannot be etehrnet address, skip the line. */
+-		else if (!isxdigit(c))
+-			c = skip_line(fp);
+-		else {
+-			/* must be the start of an address */
+-			for (i = 0; i < 6; i += 1) {
+-				d = xdtoi(c);
+-				c = getc(fp);
+-				if (c != ':') {
+-					d <<= 4;
+-					d |= xdtoi(c);
+-					c = getc(fp);
+-				}
+-				e.addr[i] = d;
+-				if (c != ':')
+-					break;
+-				c = getc(fp);
+-			}
+-			nline = 0;
+-		}
+-		if (c == EOF)
+-			return NULL;
+-	}
+-	
+-	/* If we started a new line, 'c' holds the char past the ether addr,
+-	   which we assume is white space.  If we are continuing a line,
+-	   'c' is garbage.  In either case, we can throw it away. */
+-	   
+-	c = skip_space(fp);
+-	if (c == '\n') {
+-		nline = 1;
+-		goto top;
+-	}
+-	else if (c == '#') {
+-		(void)skip_line(fp);
+-		nline = 1;
+-		goto top;
+-	}
+-	else if (c == EOF)
+-		return NULL;
+-	
+-	/* Must be a name. */
+-	bp = e.name;
+-	/* Use 'd' to prevent buffer overflow. */
+-	d = sizeof(e.name) - 1;
+-	do {
+-		*bp++ = c;
+-		c = getc(fp);
+-	} while (!isspace(c) && c != EOF && --d > 0);
+-	*bp = '\0';
+-	if (c == '\n')
+-		nline = 1;
+-
+-	return &e;
+-}
+-
+-/* Open/rewind the ethers files; returns 1 if file was reopened */
+-int
+-ether_rewind()
+-{
+-	struct stat st;
+-	static long mtime = 0, ctime = 0;
+-
+-	if (ether_fp != NULL) {
+-		if (fstat(fileno(ether_fp), &st) < 0 ||
+-		    mtime != st.st_mtime || ctime != st.st_ctime ||
+-		    fseek(ether_fp, 0L, SEEK_SET) < 0) {
+-			fclose(ether_fp);
+-			ether_fp = NULL;
+-		}
+-	}
+-	if (ether_fp == NULL) {
+-		ether_fp = fopen(ETHERS_FILE, "r");
+-		if (ether_fp == NULL)
+-			return (-1);
+-		if (fstat(fileno(ether_fp), &st) < 0) {
+-			fclose(ether_fp);
+-			ether_fp = NULL;
+-			return (-1);
+-		}
+-		mtime = st.st_mtime;
+-		ctime = st.st_ctime;
+-		return (1);
+-	}
+-	return (0);
+-}
+-
+-/* Map an ethernet address to a name; returns 0 on success, else 1. */
+-int
+-ether_ntohost(name, ea)
+-	register char *name;
+-	register u_char *ea;
+-{
+-	register struct etherent *ep;
+-
+-	if (ether_rewind() < 0)
+-		return (1);
+-
+-	while ((ep = next_etherent(ether_fp)) != NULL)
+-		if (bcmp(ep->addr, ea, 6) == 0) {
+-			strcpy(name, ep->name);
+-			return (0);
+-		}
+-	return (1);
+-}
+-
+-/* Map an ethernet name to an address; returns 0 on success, else 1. */
+-int
+-ether_hostton(name, ea)
+-	register char *name;
+-	register u_char *ea;
+-{
+-	register struct etherent *ep;
+-
+-	if (ether_rewind() < 0)
+-		return (1);
+-
+-	while ((ep = next_etherent(ether_fp)) != NULL)
+-		if (strcmp(ep->name, name) == 0) {
+-			bcopy(ep->addr, ea, 6);
+-			return (0);
+-		}
+-	return (1);
+-}
+--- rarpd/rarpd.8.jj	Thu Jan  1 01:00:00 1970
++++ rarpd/rarpd.8	Fri Apr  7 10:47:16 2000
+@@ -0,0 +1,69 @@
++.TH RARP 8 "7 April 2000" "rarpd" "Linux Programmer's Manual"
++.SH NAME
++rarpd \- Reverse Address Resolution Protocol (RARP) daemon
++.SH SYNOPSIS
++.B "rarpd [-aAvde] [-b bootdir ] [ interface ]"
++.SH DESCRIPTION
++.B Rarpd
++is a daemon which responds to RARP requests.
++RARP is used by some machines at boot time to discover their IP address.
++They provide their Ethernet address and
++.B rarpd
++responds with their IP address if it finds it in the ethers database
++(either
++.I /etc/ethers
++file or NIS+ lookup) and using DNS lookup if ethers database
++contains a hostname and not an IP address.
++By default
++.B rarpd
++also checks if a bootable image with a name starting with the IP address
++in hexadecimal uppercase letters is present in the TFTP boot directory
++(usually
++.I /tftpboot
++) before it decides to respond to the RARP request.
++.SH OPTIONS
++.TP
++.B \-a
++Do not bind to the interface.
++.TP
++.B \-A
++Respond to ARP as well as RARP requests.
++.TP
++.B \-v
++Tell the user what is going on by being verbose.
++.TP
++.B \-d
++Debugging mode. Do not detach from the tty.
++.TP
++.B \-e
++Skip the check for bootable image in the TFTP boot directory. If not
++present, then even if the Ethernet address is present in
++the ethers database but the bootable image for the resolved IP does not exist,
++.B rarpd
++will not respond to the request.
++.TP
++.B "\-b bootdir"
++Use
++.I bootdir
++instead of the default
++.I /tftpboot
++as the TFTP boot directory for bootable image checks.
++.SH OBSOLETES
++This
++.B rarpd
++obsoletes kernel
++.B rarp
++daemon present in Linux kernels up to 2.2 which was controlled by the
++rarp(8) command.
++.SH FILES
++.I /etc/ethers,
++.br
++.I /etc/nsswitch.conf,
++.br
++.I /tftpboot
++.SH SEE ALSO
++ethers(5)
++.SH AUTHORS
++Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
++.br
++Jakub Jelinek, <jakub@redhat.com>
+--- rarpd/rarpd.c.jj	Sat Nov  7 15:48:40 1998
++++ rarpd/rarpd.c	Fri Apr  7 15:35:44 2000
+@@ -7,6 +7,7 @@
+  *		2 of the License, or (at your option) any later version.
+  *
+  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
++ *		Jakub Jelinek, <jakub@redhat.com>
+  */
+ 
+ #include <stdio.h>
+@@ -26,6 +27,8 @@
+ #include <net/if.h>
+ #include <net/if_arp.h>
+ #include <netinet/in.h>
++#include <netinet/ether.h>
++#include <asm/types.h>
+ #include <linux/if_packet.h>
+ #include <linux/filter.h>
+ 
+@@ -39,27 +42,26 @@
+ int all_ifaces;
+ int listen_arp;
+ char *ifname;
+-char *tftp_dir = "/etc/tftpboot";
++char *tftp_dir = "/tftpboot";
+ 
+-extern int ether_ntohost(char *name, unsigned char *ea);
+ void usage(void) __attribute__((noreturn));
+ 
+-struct iflink
++struct rarpiflink
+ {
+-	struct iflink	*next;
+-	int	       	index;
+-	int		hatype;
+-	unsigned char	lladdr[16];
+-	unsigned char	name[IFNAMSIZ];
+-	struct ifaddr 	*ifa_list;
++	struct rarpiflink	*next;
++	int	       		index;
++	int			hatype;
++	unsigned char		lladdr[16];
++	unsigned char		name[IFNAMSIZ];
++	struct rarpifaddr 	*ifa_list;
+ } *ifl_list;
+ 
+-struct ifaddr
++struct rarpifaddr
+ {
+-	struct ifaddr 	*next;
+-	__u32		prefix;
+-	__u32		mask;
+-	__u32		local;
++	struct rarpifaddr 	*next;
++	__u32			prefix;
++	__u32			mask;
++	__u32			local;
+ };
+ 
+ struct rarp_map
+@@ -87,8 +89,8 @@
+ {
+ 	int fd;
+ 	struct ifreq *ifrp, *ifend;
+-	struct iflink *ifl;
+-	struct ifaddr *ifa;
++	struct rarpiflink *ifl;
++	struct rarpifaddr *ifa;
+ 	struct ifconf ifc;
+ 	struct ifreq ibuf[256];
+ 
+@@ -144,7 +146,7 @@
+ 				continue;
+ 			}
+ 
+-			ifl = (struct iflink*)malloc(sizeof(*ifl));
++			ifl = (struct rarpiflink*)malloc(sizeof(*ifl));
+ 			if (ifl == NULL)
+ 				continue;
+ 			memset(ifl, 0, sizeof(*ifl));
+@@ -154,6 +156,7 @@
+ 			ifl->hatype = ifrp->ifr_hwaddr.sa_family;
+ 			memcpy(ifl->lladdr, ifrp->ifr_hwaddr.sa_data, 14);
+ 			strncpy(ifl->name, ifrp->ifr_name, IFNAMSIZ);
++			ifl->name[IFNAMSIZ-1] = 0;
+ 			p = strchr(ifl->name, ':');
+ 			if (p)
+ 				*p = 0;
+@@ -179,7 +182,7 @@
+ 		if (ifa == NULL) {
+ 			if (mask == 0 || prefix == 0)
+ 				continue;
+-			ifa = (struct ifaddr*)malloc(sizeof(*ifa));
++			ifa = (struct rarpifaddr*)malloc(sizeof(*ifa));
+ 			memset(ifa, 0, sizeof(*ifa));
+ 			ifa->local = addr;
+ 			ifa->prefix = prefix;
+@@ -235,10 +238,10 @@
+ 	return dent != NULL;
+ }
+ 
+-struct ifaddr *select_ipaddr(int ifindex, __u32 *sel_addr, __u32 **alist)
++struct rarpifaddr *select_ipaddr(int ifindex, __u32 *sel_addr, __u32 **alist)
+ {
+-	struct iflink *ifl;
+-	struct ifaddr *ifa;
++	struct rarpiflink *ifl;
++	struct rarpifaddr *ifa;
+ 	int retry = 0;
+ 	int i;
+ 
+@@ -294,7 +297,7 @@
+ 
+ 	if (r == NULL) {
+ 		if (hatype == ARPHRD_ETHER && halen == 6) {
+-			struct ifaddr *ifa;
++			struct rarpifaddr *ifa;
+ 			struct hostent *hp;
+ 			char ename[256];
+ 			static struct rarp_map emap = {
+@@ -304,7 +307,7 @@
+ 				6,
+ 			};
+ 
+-			if (ether_ntohost(ename, lladdr) != 0 ||
++			if (ether_ntohost(ename, (struct ether_addr *)lladdr) != 0 ||
+ 			    (hp = gethostbyname(ename)) == NULL) {
+ 				if (verbose)
+ 					syslog(LOG_INFO, "not found in /etc/ethers");
+@@ -345,7 +348,7 @@
+ 
+ int put_mylladdr(unsigned char **ptr_p, int ifindex, int alen)
+ {
+-	struct iflink *ifl;
++	struct rarpiflink *ifl;
+ 
+ 	for (ifl=ifl_list; ifl; ifl = ifl->next)
+ 		if (ifl->index == ifindex)
+@@ -362,8 +365,8 @@
+ int put_myipaddr(unsigned char **ptr_p, int ifindex, __u32 hisipaddr)
+ {
+ 	__u32 laddr = 0;
+-	struct iflink *ifl;
+-	struct ifaddr *ifa;
++	struct rarpiflink *ifl;
++	struct rarpifaddr *ifa;
+ 
+ 	for (ifl=ifl_list; ifl; ifl = ifl->next)
+ 		if (ifl->index == ifindex)
+@@ -388,7 +391,7 @@
+ 	int fd;
+ 	struct arpreq req;
+ 	struct sockaddr_in *sin;
+-	struct iflink *ifl;
++	struct rarpiflink *ifl;
+ 
+ 	for (ifl=ifl_list; ifl; ifl = ifl->next)
+ 		if (ifl->index == ifindex)
+@@ -421,6 +424,10 @@
+ 	struct rarp_map *rmap;
+ 	unsigned char *ptr;
+ 	int n;
++	int i;
++	char tmpbuf[16*3];
++	char tmpname[IFNAMSIZ];
++	struct rarpiflink *ifl;
+ 
+ 	n = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT, (struct sockaddr*)&sll, &sll_len);
+ 	if (n<0) {
+@@ -447,20 +454,25 @@
+ 	if (a->ar_op != htons(ARPOP_RREQUEST))
+ 		return;
+ 
+-	if (verbose) {
+-		int i;
+-		char tmpbuf[16*3];
+-		char *ptr = tmpbuf;
+-		for (i=0; i<sll.sll_halen; i++) {
+-			if (i) {
+-				sprintf(ptr, ":%02x", sll.sll_addr[i]);
+-				ptr++;
+-			} else
+-				sprintf(ptr, "%02x", sll.sll_addr[i]);
+-			ptr += 2;
+-		}
+-		syslog(LOG_INFO, "RARP request from %s on if%d", tmpbuf, sll.sll_ifindex);
++	ptr = tmpbuf;
++	for (i=0; i<sll.sll_halen; i++) {
++		if (i) {
++			sprintf(ptr, ":%02x", sll.sll_addr[i]);
++			ptr++;
++		} else
++			sprintf(ptr, "%02x", sll.sll_addr[i]);
++		ptr += 2;
+ 	}
++	
++	for (ifl=ifl_list; ifl; ifl = ifl->next)
++		if (ifl->index == sll.sll_ifindex)
++			break;
++	if (ifl) {
++		strncpy(tmpname, ifl->name, IFNAMSIZ);
++		tmpname[IFNAMSIZ-1] = 0;
++	} else
++		sprintf(tmpname, "if%d", sll.sll_ifindex);
++	syslog(LOG_INFO, "RARP request from %s on %s", tmpbuf, tmpname);
+ 
+ 	/* Sanity checks */
+ 
+@@ -526,6 +538,8 @@
+ 	ptr += rmap->lladdr_len;
+ 	memcpy(ptr, &rmap->ipaddr, 4);
+ 	ptr += 4;
++	syslog(LOG_INFO, "RARP response to %s %s on %s", tmpbuf,
++	       inet_ntoa(*(struct in_addr *)&rmap->ipaddr), tmpname);
+ 
+ 	/* Update our ARP cache. Probably, this guy
+ 	   will not able to make ARP (if it is broken)
+@@ -613,7 +627,7 @@
+         if (ifname) {
+ 		struct ifreq ifr;
+ 		memset(&ifr, 0, sizeof(ifr));
+-		strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
++		strncpy(ifr.ifr_name, ifname, IFNAMSIZ-1);
+ 		if (ioctl(pset[0].fd, SIOCGIFINDEX, &ifr)) {
+ 			perror("ioctl(SIOCGIFINDEX)");
+ 			usage();
+--- rarpd/rarpd.init.jj	Thu Jan  1 01:00:00 1970
++++ rarpd/rarpd.init	Fri Apr  7 15:42:38 2000
+@@ -0,0 +1,53 @@
++#!/bin/bash
++#
++#	/etc/rc.d/init.d/rarpd
++#
++# Starts the rarpd daemon
++#
++# chkconfig: 345 82 16
++# description: Servers Reverse Address Resolution Protocol requests.
++# processname: rarpd
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++test -x /usr/sbin/rarpd -a -f /etc/ethers || exit 0
++
++RETVAL=0
++
++#
++#	See how we were called.
++#
++case "$1" in
++  start)
++	# Check if rarpd is already running
++	if [ ! -f /var/lock/subsys/rarpd ]; then
++	    echo -n 'Starting at daemon: '
++	    daemon /usr/sbin/rarpd
++	    RETVAL=$?
++	    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/rarpd
++	    echo
++	fi
++	;;
++  stop)
++	echo -n 'Stopping at daemon: '
++	killproc /usr/sbin/rarpd
++	RETVAL=$?
++	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/rarpd
++	echo
++	;;
++  reload|restart)
++	$0 stop
++	$0 start
++	RETVAL=$?
++	;;
++  status)
++	status /usr/sbin/rarpd
++	RETVAL=$?
++	;;
++  *)
++	echo "Usage: /etc/rc.d/init.d/rarpd {start|stop|restart|reload|status}"
++	exit 1
++esac
++
++exit $RETVAL

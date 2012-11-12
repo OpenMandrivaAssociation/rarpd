@@ -1,0 +1,19 @@
+--- rarpd/rarpd.c.orig	2006-01-14 03:48:12.000000000 +0100
++++ rarpd/rarpd.c	2006-01-14 05:20:18.000000000 +0100
+@@ -42,7 +42,7 @@ int only_ethers;
+ int all_ifaces;
+ int listen_arp;
+ char *ifname;
+-char *tftp_dir = "/tftpboot";
++char *tftp_dir = TFTPDIR;
+ 
+ void usage(void) __attribute__((noreturn));
+ 
+--- rarpd/Makefile.orig	2006-01-14 05:20:23.000000000 +0100
++++ rarpd/Makefile	2006-01-14 05:21:55.000000000 +0100
+@@ -1,4 +1,5 @@
+ CC=gcc
++DEFINES="-DTFTPDIR='\"/tftpboot\"'"
+ CFLAGS=-O2 -Wall -g $(DEFINES)
+ 
+ OBJ=rarpd.o

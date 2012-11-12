@@ -1,0 +1,98 @@
+--- rarpd/rarpd.init.initscript	2006-01-14 05:27:38.000000000 +0100
++++ rarpd/rarpd.init	2006-01-14 05:38:28.000000000 +0100
+@@ -7,46 +7,74 @@
+ # chkconfig: - 82 16
+ # description: Server Reverse Address Resolution Protocol requests.
+ # processname: rarpd
++#
++### BEGIN INIT INFO
++# Provides: rarpd
++# Required-Start: $network
++# Required-Stop: $network
++# Default-Start: 3 4 5
++# Short-Description: The RARP daemon
++# Description: RARP (Reverse Address Resolution Protocol) is a protocol which allows
++#              individual devices on an IP network to get their own IP addresses from the
++#              RARP server.The Network Time Protocol (NTP) is used to synchronize a
++#              computer's time with another reference time source.
++### END INIT INFO
+ 
+ # Source function library.
+-. /etc/rc.d/init.d/functions
+-
+-test -x /usr/sbin/rarpd -a -f /etc/ethers || exit 0
++. /etc/init.d/functions
+ 
+ RETVAL=0
++SERVICE=rarpd
++
++[ -x /usr/sbin/$SERVICE -a -f /etc/ethers ] || exit 0
++
++start() {
++	# Check if rarpd is already running
++	if [ ! -f /var/lock/subsys/$SERVICE ]; then
++	    gprintf "Starting %s: " "$SERVICE"
++	    daemon $SERVICE
++	    RETVAL=$?
++	    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$SERVICE
++	    echo
++	fi
++	return $RETVAL
++}
++
++stop() {
++	gprintf "Stopping %s: " "$SERVICE"
++	killproc $SERVICE
++	RETVAL=$?
++	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$SERVICE
++	echo
++	return $RETVAL
++}
+ 
+ #
+ #	See how we were called.
+ #
+ case "$1" in
+   start)
+-	# Check if rarpd is already running
+-	if [ ! -f /var/lock/subsys/rarpd ]; then
+-	    echo -n 'Starting at daemon: '
+-	    daemon /usr/sbin/rarpd
+-	    RETVAL=$?
+-	    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/rarpd
+-	    echo
+-	fi
++	start
+ 	;;
+   stop)
+-	echo -n 'Stopping at daemon: '
+-	killproc /usr/sbin/rarpd
+-	RETVAL=$?
+-	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/rarpd
+-	echo
++	stop
+ 	;;
+   reload|restart)
+-	$0 stop
+-	$0 start
+-	RETVAL=$?
++        stop
++	start
++	;;
++  condrestart)
++	if [ -f /var/lock/subsys/$SERVICE ]; then
++	    stop
++	    start
++	fi
+ 	;;
+   status)
+-	status /usr/sbin/rarpd
++	status $SERVICE
+ 	RETVAL=$?
+ 	;;
+   *)
+-	echo "Usage: /etc/rc.d/init.d/rarpd {start|stop|restart|reload|status}"
++	gprintf "Usage: %s {start|stop|restart|condrestart|reload|status}\n" "$SERVICE"
+ 	exit 1
+ esac
+ 

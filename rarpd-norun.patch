@@ -1,0 +1,13 @@
+--- rarpd/rarpd.init.foo	Fri Jun 16 16:29:01 2000
++++ rarpd/rarpd.init	Fri Jun 16 16:29:13 2000
+@@ -4,8 +4,8 @@
+ #
+ # Starts the rarpd daemon
+ #
+-# chkconfig: 345 82 16
+-# description: Servers Reverse Address Resolution Protocol requests.
++# chkconfig: - 82 16
++# description: Server Reverse Address Resolution Protocol requests.
+ # processname: rarpd
+ 
+ # Source function library.

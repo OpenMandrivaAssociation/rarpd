@@ -58,3 +58,43 @@ rm -rf %{buildroot}
 %{_sbindir}/rarpd
 %{_mandir}/man8/*
 
+
+
+%changelog
+* Tue Sep 08 2009 Thierry Vignaud <tvignaud@mandriva.com> ss981107-8mdv2010.0
++ Revision: 433057
+- rebuild
+
+* Fri Aug 01 2008 Thierry Vignaud <tvignaud@mandriva.com> ss981107-7mdv2009.0
++ Revision: 260045
+- rebuild
+
+* Fri Jul 25 2008 Thierry Vignaud <tvignaud@mandriva.com> ss981107-6mdv2009.0
++ Revision: 247887
+- rebuild
+
+  + Pixel <pixel@mandriva.com>
+    - adapt to %%_localstatedir now being /var instead of /var/lib (#22312)
+
+  + Olivier Blin <oblin@mandriva.com>
+    - restore BuildRoot
+
+* Mon Dec 17 2007 Thierry Vignaud <tvignaud@mandriva.com> ss981107-4mdv2008.1
++ Revision: 126470
+- kill re-definition of %%buildroot on Pixel's request
+
+
+* Sat Jan 14 2006 Per Øyvind Karlsen <pkarlsen@mandriva.com> ss981107-4mdk
+- fix path to tftpboot (P3)
+- clean initscript and add pinit support (P2, updated)
+- cosmetics
+- fix requires(post,preun)
+- %%mkrel
+
+* Mon Feb 21 2005 Oden Eriksson <oeriksson@mandrakesoft.com> ss981107-3mdk
+- rebuild
+- misc spec file fixes
+
+* Sat Feb 01 2003 Lenny Cartier <lenny@mandrakesoft.com ss981107-2mdk
+- rebuild
+
